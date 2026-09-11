@@ -210,6 +210,7 @@ Sources/Clix/
 
 Clix is free and always will be. If it saved you from installing Logi
 Options+, you can [buy me a coffee](https://ko-fi.com/anggarasaja).
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/anggarasaja)
 
 ## Contributing
 
