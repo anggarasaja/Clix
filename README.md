@@ -41,6 +41,55 @@ never leave the machine unusable.
 
 Unbound buttons pass straight through, untouched.
 
+### Logitech mice that hold their side buttons
+
+Some Logitech mice have no tilt wheel and offer horizontal scrolling by holding
+a side button and turning the wheel — the Signature M650 and the Lift among
+them. To tell a click apart from the start of such a scroll, the firmware
+*withholds* the press: nothing is sent while you hold the button, and when you
+finally let go the press and the release arrive together, a few milliseconds
+apart. *On Click* cannot work, because at press time there is no event for any
+tap to see. Measured on an M650 L, a two-second hold of Back reaches macOS as a
+9 ms click.
+
+The usual advice is to turn horizontal scrolling off in Logi Options+. Clix can
+do it without that. When a mouse like this is connected, Settings offers
+**Instant side buttons**, which uses HID++ — the protocol Logitech devices speak
+over a vendor HID collection, reachable over either a Bolt/Unifying receiver or
+Bluetooth — to *divert* the two navigation controls. A diverted button is no
+longer reported as a click; the device hands it to the host the moment it goes
+down, because the firmware is no longer waiting to find out whether a scroll is
+coming. The same two-second hold then measures a genuine two seconds, and
+hold-to-scroll-sideways on those buttons is switched off for as long as Clix
+holds them.
+
+Nothing is written permanently to the mouse. The diversion lasts only while
+Clix is running, is handed back when the app quits or the switch is turned off,
+and is reapplied by itself when the mouse wakes or the receiver is replugged. A
+diverted button you have not bound is posted back as an ordinary click, so it
+still navigates — just without the wait.
+
+**Bluetooth needs Input Monitoring.** Which permission this feature wants
+depends on how the mouse is connected, because the two routes reach HID++
+through different HID nodes:
+
+| Connection | HID++ lives on | Permission |
+| --- | --- | --- |
+| Logi Bolt / Unifying receiver | the receiver's vendor-only interface | none beyond Accessibility |
+| Bluetooth | the mouse node itself, which is a pointing device | **Input Monitoring** |
+
+macOS refuses `IOHIDDeviceOpen` on a pointing device without Input Monitoring,
+which is a *separate* permission from the Accessibility access the event tap
+needs — having one does not imply the other. When it is missing, Clix says so
+in Settings and offers a button to the right pane. Switch Clix on in Privacy &
+Security → Input Monitoring and then **quit and reopen Clix**: macOS does not
+apply this permission to a running app.
+
+If a connection attempt fails — the mouse asleep, Bluetooth still settling
+after switching from the receiver — Clix retries with a backoff of up to ten
+seconds rather than giving up, so the setting reappears on its own once the
+mouse answers.
+
 Clicks are intercepted at the HID tap, ahead of the window server. That
 placement matters for *On Click*: a button swallowed further downstream has
 still been seen by the window server, which treats it as a drag in progress
@@ -198,6 +247,8 @@ Sources/Clix/
   SettingsView.swift    The UI
   ShortcutRecorder.swift  Click-to-record shortcut field
   KeyCaptureTap.swift   Temporary keyboard tap that catches reserved hotkeys
+  HIDPP.swift           HID++ 2.0 over a Logitech receiver or Bluetooth
+  LogitechSideButtons.swift  Diverts side buttons that the firmware holds back
   TrackpadMonitor.swift MultitouchSupport bridge and gesture recognition
   TrackpadGesture.swift The gesture catalogue
   Accessibility.swift   Permission state

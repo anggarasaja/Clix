@@ -11,6 +11,10 @@ let log = Logger(subsystem: "com.digigara.Clix", category: "clix")
 final class BindingStore: ObservableObject {
     @Published private(set) var bindings: [Int: InputBinding] = [:]
     @Published var isEnabled = true { didSet { save() } }
+    /// Take the side buttons of a Logitech mouse over via HID++ so they report
+    /// on press instead of being held back for the hold-to-scroll gesture.
+    /// Off by default: it only matters on the mice that behave that way.
+    @Published var instantSideButtons = false { didSet { save() } }
     /// Suppresses the write that `isEnabled`'s observer would otherwise trigger
     /// while the stored file is being read back in.
     private var isLoading = false
@@ -175,6 +179,8 @@ final class BindingStore: ObservableObject {
 
     private struct Stored: Codable {
         var isEnabled: Bool
+        /// Absent in files written before the Logitech takeover existed.
+        var instantSideButtons: Bool?
         var bindings: [String: InputBinding]
         /// Absent in files written before the list became editable.
         var buttons: [Int]?
@@ -189,6 +195,7 @@ final class BindingStore: ObservableObject {
         do {
             let stored = try JSONDecoder().decode(Stored.self, from: data)
             isEnabled = stored.isEnabled
+            instantSideButtons = stored.instantSideButtons ?? false
             bindings = Dictionary(uniqueKeysWithValues: stored.bindings.compactMap { key, value in
                 Int(key).map { ($0, value) }
             })
@@ -211,6 +218,7 @@ final class BindingStore: ObservableObject {
         guard !isLoading else { return }
         let stored = Stored(
             isEnabled: isEnabled,
+            instantSideButtons: instantSideButtons,
             bindings: Dictionary(uniqueKeysWithValues: bindings.map { (String($0.key), $0.value) }),
             buttons: buttons,
             gestures: gestures.map(\.id),

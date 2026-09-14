@@ -6,6 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let accessibility = AccessibilityMonitor()
     private let tap = MouseEventTap()
     private let trackpad = TrackpadMonitor()
+    private let sideButtons = LogitechSideButtons()
 
     private var statusItem: NSStatusItem?
     private var settingsWindow: NSWindow?
@@ -20,6 +21,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.updateStatusItemAppearance()
         }
         accessibility.startPolling()
+        sideButtons.scan()
+        syncSideButtons()
 
         if accessibility.isTrusted {
             syncTapState()
@@ -34,6 +37,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         tap.stop()
         trackpad.stop()
+        // Hand the side buttons back before going away, or they stay diverted
+        // to an app that is no longer listening.
+        sideButtons.shutDown()
     }
 
     // MARK: - Tap
@@ -60,12 +66,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             store.lastActivity = "\(gesture.title) → \(action.summary)"
             ActionRunner.perform(action)
         }
+        // A diverted button never reaches the tap, so it is routed into the
+        // same handlers by hand.
+        sideButtons.isBound = { [store] button in
+            store.isEnabled && !store.isDetecting && store.action(for: button) != nil
+        }
+        sideButtons.onButton = { [store] button, phase in
+            guard store.isEnabled, !store.isDetecting,
+                  let binding = store.binding(for: .button(button)),
+                  binding.trigger == phase else { return }
+            store.lastActivity = "\(MouseButton.name(for: button)) → \(binding.action.summary)"
+            ActionRunner.perform(binding.action)
+        }
+        sideButtons.onButtonSeen = { [store] button in
+            store.noteSeen(button: button)
+            if store.action(for: button) == nil {
+                store.lastActivity = "\(MouseButton.name(for: button)) → not bound"
+            }
+        }
+
         tap.onButtonSeen = { [store] button in
             store.noteSeen(button: button)
             if store.action(for: button) == nil {
                 store.lastActivity = "\(MouseButton.name(for: button)) → not bound"
             }
         }
+    }
+
+    /// The takeover follows both switches: turning Clix off has to give the
+    /// buttons back, not just stop acting on them.
+    private func syncSideButtons() {
+        sideButtons.setEnabled(store.isEnabled && store.instantSideButtons)
     }
 
     private func syncTapState() {
@@ -125,6 +156,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func toggleEnabled(_ sender: NSMenuItem) {
         store.isEnabled.toggle()
         syncTapState()
+        syncSideButtons()
         updateStatusItemAppearance()
     }
 
@@ -139,10 +171,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        let root = SettingsView(store: store, accessibility: accessibility, tap: tap, trackpad: trackpad)
+        let root = SettingsView(store: store, accessibility: accessibility, tap: tap,
+                                trackpad: trackpad, sideButtons: sideButtons)
             .onChange(of: store.isEnabled) { [weak self] _ in
                 self?.syncTapState()
+                self?.syncSideButtons()
                 self?.updateStatusItemAppearance()
+            }
+            .onChange(of: store.instantSideButtons) { [weak self] _ in
+                self?.syncSideButtons()
             }
 
         let window = NSWindow(

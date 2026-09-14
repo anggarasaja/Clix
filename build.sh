@@ -6,7 +6,7 @@ cd "$(dirname "$0")"
 
 APP_NAME="Clix"
 BUNDLE_ID="com.digigara.Clix"
-VERSION="1.0"
+VERSION="1.1"
 BUILD_DIR="build"
 APP="$BUILD_DIR/$APP_NAME.app"
 # Set CODESIGN_IDENTITY to a self-signed certificate to keep the Accessibility

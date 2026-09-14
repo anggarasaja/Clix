@@ -9,6 +9,7 @@ struct SettingsView: View {
     @ObservedObject var accessibility: AccessibilityMonitor
     @ObservedObject var tap: MouseEventTap
     @ObservedObject var trackpad: TrackpadMonitor
+    @ObservedObject var sideButtons: LogitechSideButtons
 
     @State private var selection: BindingTarget?
     @State private var launchAtLogin = LoginItem.isEnabled
@@ -35,6 +36,7 @@ struct SettingsView: View {
                 editor.frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             Divider()
+            sideButtonBanner
             footer
         }
         .onAppear { if selection == nil { selection = store.listedTargets.first } }
@@ -158,6 +160,73 @@ struct SettingsView: View {
         } else {
             Text("Select something on the left").foregroundStyle(.secondary)
         }
+    }
+
+    // MARK: - Logitech side buttons
+
+    /// Only shown once a Logitech mouse that can do this is actually plugged
+    /// in, so it never appears as a setting with nothing to act on.
+    @ViewBuilder
+    private var sideButtonBanner: some View {
+        if sideButtons.deviceName != nil || sideButtons.needsInputMonitoring {
+            VStack(alignment: .leading, spacing: 6) {
+                Toggle(isOn: $store.instantSideButtons) {
+                    Text(sideButtons.deviceName.map { "Instant side buttons on \($0)" }
+                         ?? "Instant side buttons")
+                }
+                .toggleStyle(.switch)
+
+                Text(sideButtonExplanation)
+                    .font(.caption)
+                    .foregroundStyle(sideButtonExplanationIsWarning ? Color.orange : Color.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if sideButtons.needsInputMonitoring {
+                    Button("Open Input Monitoring Settings") {
+                        LogitechSideButtons.openInputMonitoringSettings()
+                    }
+                    .controlSize(.small)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.quaternary.opacity(0.3))
+            Divider()
+        }
+    }
+
+    private var sideButtonExplanationIsWarning: Bool {
+        sideButtons.needsInputMonitoring || sideButtons.problem != nil
+    }
+
+    private var sideButtonExplanation: String {
+        if sideButtons.needsInputMonitoring {
+            return """
+            Over Bluetooth this mouse is reached by opening the mouse itself, \
+            which macOS guards with Input Monitoring — a separate permission \
+            from the Accessibility access Clix already has. Switch Clix on in \
+            Privacy & Security → Input Monitoring, then quit and reopen Clix; \
+            macOS does not apply this one until the app restarts. Connecting \
+            through the Logi Bolt receiver instead needs no extra permission.
+            """
+        }
+        if let problem = sideButtons.problem { return problem }
+        if !store.instantSideButtons {
+            return """
+            Some Logitech mice hold Back and Forward until you let go, so they can \
+            offer hold-a-side-button-and-scroll for horizontal scrolling. Turn this \
+            on to take those two buttons over directly: they fire the moment you \
+            press, and horizontal scrolling on them is switched off.
+            """
+        }
+        if sideButtons.isActive {
+            return """
+            Back and Forward now report on press. Horizontal scrolling on them is \
+            off while Clix is running; quitting Clix gives them back.
+            """
+        }
+        return "Waiting for the mouse…"
     }
 
     // MARK: - Footer
