@@ -8,6 +8,29 @@ A small menu bar app for macOS that remaps the extra buttons on your mouse to
 keyboard shortcuts, applications, or built-in system functions — the way Logi
 Options+ does, without the rest of Logi Options+.
 
+It also fixes one specific annoyance: **Logitech mice whose back and forward
+buttons only register when you let go.** That is the firmware holding the press
+back so it can offer hold-a-side-button-and-scroll for horizontal scrolling.
+Clix turns that off from inside the app, so the buttons fire the instant you
+press — no Logi Options+ required. See [Logitech side buttons that only fire on
+release](#logitech-side-buttons-that-only-fire-on-release-m650-lift).
+
+Works with any mouse macOS reports extra buttons for. The side-button fix is
+Logitech-specific, and needs no driver, kernel extension or background service
+beyond Clix itself.
+
+**Contents**
+
+- [What it does](#what-it-does)
+- [Logitech side buttons that only fire on release (M650, Lift)](#logitech-side-buttons-that-only-fire-on-release-m650-lift)
+- [Build and install](#build-and-install)
+- [Is it working?](#is-it-working)
+- [Standing in for a gesture](#standing-in-for-a-gesture)
+- [Reading gestures from the trackpad](#reading-gestures-from-the-trackpad)
+- [Managing the button list](#managing-the-button-list)
+- [Where settings live](#where-settings-live)
+- [Questions people actually ask](#questions-people-actually-ask)
+
 ## What it does
 
 Pick a mouse button in the sidebar, switch on "Remap this button", and choose
@@ -41,27 +64,49 @@ never leave the machine unusable.
 
 Unbound buttons pass straight through, untouched.
 
-### Logitech mice that hold their side buttons
+Clicks are intercepted at the HID tap, ahead of the window server. That
+placement matters for *On Click*: a button swallowed further downstream has
+still been seen by the window server, which treats it as a drag in progress
+and holds the action back until the button comes up — a space switch bound to
+*On Click* would not happen until you let go. If the HID placement is ever
+refused, Clix falls back to the session tap and says so in the footer.
 
-Some Logitech mice have no tilt wheel and offer horizontal scrolling by holding
-a side button and turning the wheel — the Signature M650 and the Lift among
-them. To tell a click apart from the start of such a scroll, the firmware
-*withholds* the press: nothing is sent while you hold the button, and when you
-finally let go the press and the release arrive together, a few milliseconds
-apart. *On Click* cannot work, because at press time there is no event for any
-tap to see. Measured on an M650 L, a two-second hold of Back reaches macOS as a
-9 ms click.
+## Logitech side buttons that only fire on release (M650, Lift)
 
-The usual advice is to turn horizontal scrolling off in Logi Options+. Clix can
-do it without that. When a mouse like this is connected, Settings offers
-**Instant side buttons**, which uses HID++ — the protocol Logitech devices speak
-over a vendor HID collection, reachable over either a Bolt/Unifying receiver or
-Bluetooth — to *divert* the two navigation controls. A diverted button is no
-longer reported as a click; the device hands it to the host the moment it goes
-down, because the firmware is no longer waiting to find out whether a scroll is
-coming. The same two-second hold then measures a genuine two seconds, and
-hold-to-scroll-sideways on those buttons is switched off for as long as Clix
-holds them.
+**Symptoms.** You have a Logitech mouse with no tilt wheel — the Signature
+M650 and M650 L and the Lift are the ones this is confirmed on — and:
+
+- Back and Forward do nothing while held, then fire the moment you release.
+- A binding set to *On Click* behaves exactly like *On Release*.
+- The buttons feel laggy or "sticky" in browsers, Finder and games.
+- Every remapper has the same problem, which is the clue that it is not any
+  one app's fault. [LinearMouse hit this and closed it as not
+  planned](https://github.com/linearmouse/linearmouse/issues/739); anything
+  built on an event tap is stuck the same way, for the reason below.
+
+**Cause.** These mice have no tilt wheel, so Logitech offers horizontal
+scrolling by holding a side button and turning the wheel. To tell a click apart
+from the start of such a scroll, the firmware *withholds* the press: nothing is
+sent while you hold the button, and when you finally let go the press and the
+release arrive together, a few milliseconds apart. *On Click* cannot work,
+because at press time there is no event for any tap to see. Measured on an
+M650 L, a two-second hold of Back reaches macOS as a 9 ms click.
+
+**Fix.** The usual advice is to turn horizontal scrolling off in Logi Options+.
+Clix can do it without installing Options+ at all. When a mouse like this is
+connected, Settings offers **Instant side buttons**, which uses HID++ — the
+protocol Logitech devices speak over a vendor HID collection, reachable over
+either a Bolt/Unifying receiver or Bluetooth — to *divert* the two navigation
+controls. A diverted button is no longer reported as a click; the device hands
+it to the host the moment it goes down, because the firmware is no longer
+waiting to find out whether a scroll is coming. The same two-second hold then
+measures a genuine two seconds, and hold-to-scroll-sideways on those buttons is
+switched off for as long as Clix holds them.
+
+| Back, held ~2 s | reaches macOS as |
+| --- | --- |
+| stock firmware | a 9 ms click, on release |
+| Instant side buttons on | a genuine ~2 s press and release |
 
 Nothing is written permanently to the mouse. The diversion lasts only while
 Clix is running, is handed back when the app quits or the switch is turned off,
@@ -89,13 +134,6 @@ If a connection attempt fails — the mouse asleep, Bluetooth still settling
 after switching from the receiver — Clix retries with a backoff of up to ten
 seconds rather than giving up, so the setting reappears on its own once the
 mouse answers.
-
-Clicks are intercepted at the HID tap, ahead of the window server. That
-placement matters for *On Click*: a button swallowed further downstream has
-still been seen by the window server, which treats it as a drag in progress
-and holds the action back until the button comes up — a space switch bound to
-*On Click* would not happen until you let go. If the HID placement is ever
-refused, Clix falls back to the session tap and says so in the footer.
 
 ## Build and install
 
@@ -256,6 +294,53 @@ Sources/Clix/
   KeyNames.swift        Key code → label
   LoginItem.swift       Launch at login
 ```
+
+## Questions people actually ask
+
+**Why do my Logitech M650's back and forward buttons only work when I release
+them?**
+The mouse is holding the press back so it can offer horizontal scrolling when
+you hold a side button and turn the wheel. Nothing is sent while the button is
+down, so no app on macOS can react early. Full explanation in [Logitech side
+buttons that only fire on
+release](#logitech-side-buttons-that-only-fire-on-release-m650-lift).
+
+**How do I disable horizontal scrolling on a Logitech mouse on macOS?**
+Either turn it off in Logi Options+ (Logitech's own app), or switch on
+**Instant side buttons** in Clix, which does it over HID++ without Options+
+being installed. Clix only switches it off for the two navigation buttons, and
+only while Clix is running.
+
+**Does this change my mouse permanently?**
+No. Nothing is written to the mouse's stored configuration. The change lasts
+only while Clix holds it, and is handed back when Clix quits, when the switch
+is turned off, or when the mouse is power-cycled.
+
+**Do I still need Logi Options+?**
+Not for this. Clix talks to the mouse directly over HID++, the same protocol
+Options+ uses. If you want Options+ for other reasons it can stay installed.
+
+**Does it work over Bluetooth, or only with the Bolt receiver?**
+Both. Over Bluetooth macOS additionally requires Input Monitoring, because
+there HID++ lives on the mouse node itself rather than on the receiver's
+vendor-only interface — see the permissions table above. Grant it, then quit
+and reopen Clix.
+
+**Which mice does the side-button fix work with?**
+Logitech mice that expose HID++ reprogrammable controls and let the host divert
+them. Confirmed on the Signature M650 L; the M650 and Lift behave the same way.
+Clix asks the device what it will hand over rather than assuming, so it should
+work on others in the family. If a mouse refuses, Clix says so instead of
+pretending.
+
+**Does Clix work with non-Logitech mice?**
+Yes, for remapping — any mouse macOS reports extra buttons for. The side-button
+fix is Logitech-only, because it depends on HID++.
+
+**Is this a driver or a kernel extension?**
+Neither. Clix is an ordinary menu bar app. It uses a CGEvent tap for clicks and
+IOKit's HID APIs for the Logitech part, so there is nothing to install into the
+system and nothing left behind when you delete it.
 
 ## Support
 
