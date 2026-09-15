@@ -16,6 +16,7 @@ struct SettingsView: View {
     @State private var loginItemError: String?
     @State private var isAdding = false
     @State private var pendingRemoval: BindingTarget?
+    @State private var pendingMenuBarHide = false
 
     var body: some View {
         Group {
@@ -269,8 +270,36 @@ struct SettingsView: View {
                 }
             ))
             .toggleStyle(.checkbox)
+
+            Toggle("Hide Menu Bar Icon", isOn: Binding(
+                get: { store.hideMenuBarIcon },
+                set: { wanted in
+                    // Hiding removes the only visible way back in, so ask
+                    // first rather than leaving the user stranded.
+                    if wanted {
+                        pendingMenuBarHide = true
+                    } else {
+                        store.hideMenuBarIcon = false
+                    }
+                }
+            ))
+            .toggleStyle(.checkbox)
         }
         .padding(12)
+        .confirmationDialog(
+            "Hide Clix's menu bar icon?",
+            isPresented: $pendingMenuBarHide,
+            titleVisibility: .visible
+        ) {
+            Button("Hide Icon", role: .destructive) {
+                // The model hook in BindingStore removes the icon the moment
+                // this flag is set — no restart needed.
+                store.hideMenuBarIcon = true
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Clix keeps running and every binding stays active. Bring the icon and Settings back with Control-Option-Command-C.")
+        }
     }
 
     private var statusTitle: String {

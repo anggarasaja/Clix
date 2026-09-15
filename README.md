@@ -25,11 +25,16 @@ beyond Clix itself.
 - [Logitech side buttons that only fire on release (M650, Lift)](#logitech-side-buttons-that-only-fire-on-release-m650-lift)
 - [Build and install](#build-and-install)
 - [Is it working?](#is-it-working)
+- [Hiding the menu bar icon](#hiding-the-menu-bar-icon)
 - [Standing in for a gesture](#standing-in-for-a-gesture)
 - [Reading gestures from the trackpad](#reading-gestures-from-the-trackpad)
 - [Managing the button list](#managing-the-button-list)
 - [Where settings live](#where-settings-live)
 - [Questions people actually ask](#questions-people-actually-ask)
+
+## Screenshots
+
+![Settings window](docs/screenshots/settings.png)
 
 ## What it does
 
@@ -146,7 +151,8 @@ Then launch Clix and grant **Accessibility** access when prompted
 (System Settings → Privacy & Security → Accessibility). Clix needs it both to
 see mouse buttons and to send keystrokes; nothing works without it.
 
-Clix lives in the menu bar only — no Dock icon. Click the mouse icon for
+Clix lives in the menu bar only — no Dock icon. Opening Clix (double-click or
+`open`) brings up the Settings window; otherwise click the mouse icon for
 Settings, the on/off switch, or Quit.
 
 Requires macOS 13 or later. Swift 5.10 command line tools are enough to build
@@ -163,6 +169,24 @@ The footer of the Settings window shows a status dot:
 
 Each binding also has a **Test Action** button that runs it directly, so a
 broken action can be told apart from an input that never arrived.
+
+## Hiding the menu bar icon
+
+Clix normally sits in the menu bar — that mouse icon is also its only visible
+handle besides the Settings window. If you would rather it run invisibly in the
+background, tick **Hide Menu Bar Icon** in the footer of Settings (it asks
+first). Every binding stays active; only the icon goes away.
+
+Because there is then no Dock icon and no menu bar item to reach it through,
+the menu bar icon only hides while a way back is guaranteed:
+
+- Press **Control-Option-Command-C** (⌃⌥⌘C) to bring the icon and the
+  Settings window back.
+- The hotkey is registered only while the icon is hidden, so it never
+  interferes with anything else.
+
+The choice is stored in `bindings.json`, so Clix still starts headless after a
+relaunch if you left it hidden.
 
 Without Accessibility access, `CGEvent.post` silently does nothing — macOS
 raises no error, keystrokes simply never appear. That is why Clix replaces its

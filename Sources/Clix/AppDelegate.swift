@@ -10,10 +10,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var statusItem: NSStatusItem?
     private var settingsWindow: NSWindow?
+    /// The safety net that brings the icon back when it has been hidden.
+    private let globalHotkey = GlobalHotkey()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         MainMenu.install()
-        setUpStatusItem()
+        // React to menu bar visibility changes outside the Settings window's
+        // view life cycle: this drives the icon the moment the toggle flips,
+        // without relying on SwiftUI's `.onChange`.
+        store.onHideMenuBarIconChange = { [weak self] in
+            self?.applyMenuBarVisibility()
+        }
+        applyMenuBarVisibility()
         wireTap()
 
         accessibility.onChange = { [weak self] _ in
@@ -28,8 +36,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             syncTapState()
         } else {
             accessibility.requestAccess()
-            showSettings(nil)
         }
+
+        // Opening Clix means asking for its window: bring up Settings. When
+        // Accessibility is missing the Settings window shows the permission
+        // gate instead of the editor.
+        showSettings(nil)
 
         updateStatusItemAppearance()
     }
@@ -151,6 +163,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func updateStatusItemAppearance() {
         statusItem?.button?.appearsDisabled = !(store.isEnabled && accessibility.isTrusted)
+    }
+
+    /// Shows or hides the menu bar icon to match the persisted setting.
+    ///
+    /// While the icon is hidden the app is unreachable — no Dock icon, no main
+    /// menu — so the safety-net hotkey is armed at the same time. It un-hides
+    /// the icon and opens Settings; there is no other way back in.
+    private func applyMenuBarVisibility() {
+        if store.hideMenuBarIcon {
+            if let statusItem {
+                // nil-ing the property alone does not reliably remove the item
+                // from the menu bar on modern macOS; removeStatusItem is the
+                // path that actually clears the icon.
+                NSStatusBar.system.removeStatusItem(statusItem)
+                self.statusItem = nil
+            }
+            globalHotkey.register { [weak self] in
+                // Setting the flag un-hides the icon via the model hook.
+                self?.store.hideMenuBarIcon = false
+                self?.showSettings(nil)
+            }
+        } else {
+            globalHotkey.unregister()
+            if statusItem == nil { setUpStatusItem() }
+            updateStatusItemAppearance()
+        }
     }
 
     @objc private func toggleEnabled(_ sender: NSMenuItem) {

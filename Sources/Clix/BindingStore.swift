@@ -15,6 +15,20 @@ final class BindingStore: ObservableObject {
     /// on press instead of being held back for the hold-to-scroll gesture.
     /// Off by default: it only matters on the mice that behave that way.
     @Published var instantSideButtons = false { didSet { save() } }
+    /// When on, the menu bar icon is removed and Clix runs headless — every
+    /// binding keeps working. Control-Option-Command-C brings the icon and
+    /// the Settings window back.
+    @Published var hideMenuBarIcon = false {
+        didSet {
+            save()
+            onHideMenuBarIconChange?()
+        }
+    }
+    /// Invoked whenever `hideMenuBarIcon` changes, so the app delegate can show
+    /// or hide the menu bar item the moment it flips. SwiftUI's own `.onChange`
+    /// is not reliable enough for a side effect the app's whole visibility
+    /// depends on, so this is driven from the model instead.
+    var onHideMenuBarIconChange: (() -> Void)?
     /// Suppresses the write that `isEnabled`'s observer would otherwise trigger
     /// while the stored file is being read back in.
     private var isLoading = false
@@ -181,6 +195,8 @@ final class BindingStore: ObservableObject {
         var isEnabled: Bool
         /// Absent in files written before the Logitech takeover existed.
         var instantSideButtons: Bool?
+        /// Absent in files written before the menu bar icon could be hidden.
+        var hideMenuBarIcon: Bool?
         var bindings: [String: InputBinding]
         /// Absent in files written before the list became editable.
         var buttons: [Int]?
@@ -196,6 +212,7 @@ final class BindingStore: ObservableObject {
             let stored = try JSONDecoder().decode(Stored.self, from: data)
             isEnabled = stored.isEnabled
             instantSideButtons = stored.instantSideButtons ?? false
+            hideMenuBarIcon = stored.hideMenuBarIcon ?? false
             bindings = Dictionary(uniqueKeysWithValues: stored.bindings.compactMap { key, value in
                 Int(key).map { ($0, value) }
             })
@@ -219,6 +236,7 @@ final class BindingStore: ObservableObject {
         let stored = Stored(
             isEnabled: isEnabled,
             instantSideButtons: instantSideButtons,
+            hideMenuBarIcon: hideMenuBarIcon,
             bindings: Dictionary(uniqueKeysWithValues: bindings.map { (String($0.key), $0.value) }),
             buttons: buttons,
             gestures: gestures.map(\.id),
